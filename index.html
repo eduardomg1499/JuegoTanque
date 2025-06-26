@@ -150,7 +150,15 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE Y JUEGO ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "...", projectId: "..." };
+        const firebaseConfig = {
+  apiKey: "AIzaSyDKxJUQWP0VM0aRYrFbgkrJ-pYMV7GGxTE",
+  authDomain: "juego-de-tanques-2c64e.firebaseapp.com",
+  projectId: "juego-de-tanques-2c64e",
+  storageBucket: "juego-de-tanques-2c64e.firebasestorage.app",
+  messagingSenderId: "857564001327",
+  appId: "1:857564001327:web:2bc65a51a3f0ae789b82da",
+  measurementId: "G-CTVMR12X4Z"
+};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-tank-game';
 
         const app = initializeApp(firebaseConfig);
