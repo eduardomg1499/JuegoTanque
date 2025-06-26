@@ -99,13 +99,14 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.7);
             color: #00ff88;
             padding: 10px 20px;
             border-radius: 5px;
-            z-index: 5;
+            z-index: 20; /* Aumentado para estar por encima de todo */
             font-size: 1.2em;
             display: none; /* Initially hidden */
+            transition: opacity 0.5s;
         }
         .health-bar {
             position: absolute;
@@ -146,26 +147,27 @@
     <script type="module">
         // --- IMPORTACIONES DE FIREBASE ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE Y JUEGO ---
         const firebaseConfig = {
-  apiKey: "AIzaSyDKxJUQWP0VM0aRYrFbgkrJ-pYMV7GGxTE",
-  authDomain: "juego-de-tanques-2c64e.firebaseapp.com",
-  projectId: "juego-de-tanques-2c64e",
-  storageBucket: "juego-de-tanques-2c64e.firebasestorage.app",
-  messagingSenderId: "857564001327",
-  appId: "1:857564001327:web:2bc65a51a3f0ae789b82da",
-  measurementId: "G-CTVMR12X4Z"
-};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-tank-game';
+            apiKey: "AIzaSyDKxJUQWP0VM0aRYrFbgkrJ-pYMV7GGxTE",
+            authDomain: "juego-de-tanques-2c64e.firebaseapp.com",
+            projectId: "juego-de-tanques-2c64e",
+            storageBucket: "juego-de-tanques-2c64e.appspot.com",
+            messagingSenderId: "857564001327",
+            appId: "1:857564001327:web:2bc65a51a3f0ae789b82da",
+            measurementId: "G-CTVMR12X4Z"
+        };
+        const appId = 'default-tank-game'; // appID para Firestore
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
         // --- ELEMENTOS DEL DOM ---
+        const gameContainer = document.getElementById('game-container');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const uiOverlay = document.getElementById('ui-overlay');
@@ -197,45 +199,30 @@
         
         // --- FUNCIÓN DE UTILIDAD PARA MENSAJES ---
         function showTemporaryMessage(message, isError = false) {
-            const messageContainer = document.getElementById('ui-overlay');
-            const messageElement = document.createElement('div');
-            messageElement.textContent = message;
-            messageElement.style.position = 'absolute';
-            messageElement.style.bottom = '20px';
-            messageElement.style.left = '50%';
-            messageElement.style.transform = 'translateX(-50%)';
-            messageElement.style.padding = '10px 20px';
-            messageElement.style.borderRadius = '8px';
-            messageElement.style.color = 'white';
-            messageElement.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(34, 197, 94, 0.9)'; // rojo o verde
-            messageElement.style.zIndex = '100';
-            messageElement.style.transition = 'opacity 0.5s';
-            messageElement.style.textAlign = 'center';
-
-            messageContainer.appendChild(messageElement);
+            statusMessage.textContent = message;
+            statusMessage.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(34, 197, 94, 0.9)';
+            statusMessage.style.display = 'block';
+            statusMessage.style.opacity = '1';
 
             setTimeout(() => {
-                messageElement.style.opacity = '0';
+                statusMessage.style.opacity = '0';
                 setTimeout(() => {
-                    if (messageContainer.contains(messageElement)) {
-                        messageContainer.removeChild(messageElement);
-                    }
+                    statusMessage.style.display = 'none';
                 }, 500);
-            }, 2500);
+            }, 5000); // Aumentado el tiempo para que el mensaje sea legible
         }
 
         // --- AUTENTICACIÓN Y LÓGICA DE PARTIDA ---
         async function init() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
             } catch (error) {
                 console.error("Error en la autenticación:", error);
-                statusMessage.textContent = "Error de autenticación.";
-                statusMessage.style.display = 'block';
+                if (error.code === 'auth/configuration-not-found') {
+                    showTemporaryMessage("Error: Ve a tu consola de Firebase > Authentication > Sign-in method y habilita la opción 'Anónimo'.", true);
+                } else {
+                    showTemporaryMessage("Error de autenticación. Revisa la consola.", true);
+                }
             }
             
             onAuthStateChanged(auth, (user) => {
@@ -249,27 +236,36 @@
         }
 
         createGameBtn.addEventListener('click', async () => {
-            if (!playerId) return;
+            if (!playerId) {
+                showTemporaryMessage("Aún no se ha autenticado. Intenta de nuevo en un momento.", true);
+                return;
+            };
             playerNumber = 1;
-            const gameRef = collection(db, "artifacts", appId, "public", "data", "games");
-            const newGameDoc = await addDoc(gameRef, {
-                status: 'waiting',
-                createdAt: serverTimestamp(),
-                players: {
-                    [playerId]: {
-                        number: 1,
-                        x: 100, y: 100, angle: 0, health: 100, 
-                        isHost: true, id: playerId
-                    }
-                },
-                projectiles: [],
-            });
-            
-            gameId = newGameDoc.id;
-            gameIdDisplay.textContent = gameId;
-            mainMenu.classList.add('hidden');
-            waitingRoom.classList.remove('hidden');
-            listenToGameUpdates();
+            try {
+                // El path correcto para Firestore debe ser una colección
+                const gameCollectionRef = collection(db, "games");
+                const newGameDoc = await addDoc(gameCollectionRef, {
+                    status: 'waiting',
+                    createdAt: serverTimestamp(),
+                    players: {
+                        [playerId]: {
+                            number: 1,
+                            x: 100, y: 100, angle: 0, health: 100, 
+                            isHost: true, id: playerId
+                        }
+                    },
+                    projectiles: [],
+                });
+                
+                gameId = newGameDoc.id;
+                gameIdDisplay.textContent = gameId;
+                mainMenu.classList.add('hidden');
+                waitingRoom.classList.remove('hidden');
+                listenToGameUpdates();
+            } catch (error) {
+                console.error("Error al crear la partida:", error);
+                showTemporaryMessage("Error al crear partida. Revisa las reglas de Firestore.", true);
+            }
         });
 
         joinGameBtn.addEventListener('click', async () => {
@@ -280,29 +276,33 @@
             };
             
             gameId = idToJoin;
-            const gameRef = doc(db, "artifacts", appId, "public", "data", "games", gameId);
-            const gameSnap = await getDoc(gameRef);
+            const gameRef = doc(db, "games", gameId);
+            
+            try {
+                const gameSnap = await getDoc(gameRef);
 
-            if (gameSnap.exists()) {
-                const gameData = gameSnap.data();
-                if (Object.keys(gameData.players).length < 2) {
-                    playerNumber = 2;
-                    const opponentId = Object.keys(gameData.players)[0];
-
-                    await updateDoc(gameRef, {
-                        status: 'playing',
-                        [`players.${playerId}`]: {
-                            number: 2,
-                            x: canvas.width - 100, y: canvas.height - 100, angle: Math.PI, health: 100,
-                            isHost: false, id: playerId
-                        }
-                    });
-                    listenToGameUpdates();
+                if (gameSnap.exists()) {
+                    const gameData = gameSnap.data();
+                    if (Object.keys(gameData.players).length < 2) {
+                        playerNumber = 2;
+                        await updateDoc(gameRef, {
+                            status: 'playing',
+                            [`players.${playerId}`]: {
+                                number: 2,
+                                x: canvas.width - 100, y: canvas.height - 100, angle: Math.PI, health: 100,
+                                isHost: false, id: playerId
+                            }
+                        });
+                        listenToGameUpdates();
+                    } else {
+                        showTemporaryMessage("La partida está llena.", true);
+                    }
                 } else {
-                    showTemporaryMessage("La partida está llena.", true);
+                    showTemporaryMessage("No se encontró la partida.", true);
                 }
-            } else {
-                showTemporaryMessage("No se encontró la partida.", true);
+            } catch (error) {
+                console.error("Error al unirse a la partida:", error);
+                showTemporaryMessage("Error al unirse. Revisa el código y tu conexión.", true);
             }
         });
 
@@ -338,7 +338,7 @@
         function listenToGameUpdates() {
             if (gameUnsubscribe) gameUnsubscribe();
             
-            const gameRef = doc(db, "artifacts", appId, "public", "data", "games", gameId);
+            const gameRef = doc(db, "games", gameId);
             gameUnsubscribe = onSnapshot(gameRef, (docSnap) => {
                 if (!docSnap.exists()) {
                     endGame("El oponente ha abandonado la partida.");
@@ -347,17 +347,16 @@
 
                 gameState = docSnap.data();
 
-                if (gameState.status === 'waiting' && playerNumber === 1) {
-                    // Sigue esperando
-                } else if (gameState.status === 'playing' || gameState.status === 'waiting') {
-                     if (Object.keys(gameState.players).length === 2) {
-                        gameState.status = 'playing';
-                        uiOverlay.classList.add('hidden');
-                        if (!animationFrameId) {
-                            resizeCanvas();
-                            gameLoop();
-                        }
-                     }
+                if (gameState.status === 'playing' || (gameState.status === 'waiting' && Object.keys(gameState.players).length === 2)) {
+                    if (gameState.status === 'waiting') {
+                         const gameDocRef = doc(db, "games", gameId);
+                         updateDoc(gameDocRef, { status: 'playing' });
+                    }
+                    uiOverlay.classList.add('hidden');
+                    if (!animationFrameId) {
+                        resizeCanvas();
+                        gameLoop();
+                    }
                 } else if (gameState.status.includes('_wins')) {
                     const winnerNum = parseInt(gameState.status.charAt(1));
                     const message = winnerNum === playerNumber ? "¡Has ganado!" : "¡Has perdido!";
@@ -454,14 +453,11 @@
                 needsUpdate = true;
             }
 
-            // Detección de colisiones simple
             const playerRect = { x: newX - 20, y: newY - 25, width: 40, height: 50 };
             let collision = false;
-            // Colisión con bordes
             if (playerRect.x < 0 || playerRect.x + playerRect.width > canvas.width || playerRect.y < 0 || playerRect.y + playerRect.height > canvas.height) {
                 collision = true;
             }
-            // Colisión con obstáculos
             for (const o of obstacles) {
                 if (playerRect.x < o.x + o.width && playerRect.x + playerRect.width > o.x &&
                     playerRect.y < o.y + o.height && playerRect.y + playerRect.height > o.y) {
@@ -476,7 +472,7 @@
             }
 
             if (needsUpdate) {
-                const gameRef = doc(db, "artifacts", appId, "public", "data", "games", gameId);
+                const gameRef = doc(db, "games", gameId);
                 updateDoc(gameRef, {
                     [`players.${playerId}.x`]: playerState.x,
                     [`players.${playerId}.y`]: playerState.y,
@@ -501,13 +497,12 @@
                     };
                     
                     const updatedProjectiles = [...(gameState.projectiles || []), newProjectile];
-                    const gameRef = doc(db, "artifacts", appId, "public", "data", "games", gameId);
+                    const gameRef = doc(db, "games", gameId);
                     updateDoc(gameRef, { projectiles: updatedProjectiles });
                 }
             }
         }
 
-        // Esta función se ejecuta solo en el host para evitar cálculos duplicados
         function updateGameStateOnHost() {
             if (!gameState || !gameState.players[playerId] || !gameState.players[playerId].isHost) {
                  return;
@@ -517,34 +512,30 @@
             let players = { ...gameState.players };
             let stateChanged = false;
 
-            // Mover proyectiles
             newProjectiles = newProjectiles.map(p => ({
                 ...p,
                 x: p.x + Math.sin(p.angle) * p.speed,
                 y: p.y - Math.cos(p.angle) * p.speed,
-            })).filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+            })).filter(p => p.x > -10 && p.x < canvas.width + 10 && p.y > -10 && p.y < canvas.height + 10);
 
-            // Colisión proyectil-obstáculo
              newProjectiles = newProjectiles.filter(p => {
                 for (const o of obstacles) {
                     if (p.x > o.x && p.x < o.x + o.width && p.y > o.y && p.y < o.y + o.height) {
-                        return false; // Eliminar proyectil
+                        return false; 
                     }
                 }
                 return true;
             });
 
-            // Colisión proyectil-tanque
-            const originalProjectileCount = newProjectiles.length;
             newProjectiles = newProjectiles.filter(p => {
                 for (const pId in players) {
                     if (p.ownerId !== pId) {
                         const tank = players[pId];
                         const distance = Math.sqrt((p.x - tank.x)**2 + (p.y - tank.y)**2);
-                        if (distance < 25) { // Radio de colisión del tanque
+                        if (distance < 25) { 
                             players[pId].health -= 10;
                             stateChanged = true;
-                            return false; // Eliminar proyectil
+                            return false; 
                         }
                     }
                 }
@@ -554,29 +545,27 @@
             if (newProjectiles.length !== (gameState.projectiles || []).length || stateChanged) {
                  const updates = { projectiles: newProjectiles, players: players };
 
-                 // Verificar condición de victoria
                  for (const pId in players) {
                      if (players[pId].health <= 0) {
+                        players[pId].health = 0;
                         const winnerId = Object.keys(players).find(id => id !== pId);
                         const winner = players[winnerId];
                         updates.status = `p${winner.number}_wins`;
                      }
                  }
-                const gameRef = doc(db, "artifacts", appId, "public", "data", "games", gameId);
+                const gameRef = doc(db, "games", gameId);
                 updateDoc(gameRef, updates);
             }
         }
         
         function gameLoop() {
-            if (gameState.status !== 'playing') {
+            if (!gameState || gameState.status !== 'playing') {
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
                 return;
             }
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Fondo
             ctx.fillStyle = '#3a3a3a';
             ctx.fillRect(0,0, canvas.width, canvas.height);
             
@@ -591,7 +580,7 @@
 
             handleInput();
             handleShooting();
-            updateGameStateOnHost(); // Solo el host actualiza el estado global
+            updateGameStateOnHost();
 
             animationFrameId = requestAnimationFrame(gameLoop);
         }
@@ -606,15 +595,12 @@
                 gameUnsubscribe = null;
             }
 
-            statusMessage.textContent = message;
-            statusMessage.style.display = 'block';
+            showTemporaryMessage(message, false);
 
             setTimeout(() => {
-                // Reiniciar para una nueva partida
                 uiOverlay.classList.remove('hidden');
                 mainMenu.classList.remove('hidden');
                 waitingRoom.classList.add('hidden');
-                statusMessage.style.display = 'none';
                 joinGameInput.value = '';
                 gameId = null;
                 playerNumber = null;
@@ -622,7 +608,6 @@
             }, 5000);
         }
 
-        // --- MANEJO DE VENTANA Y TECLADO ---
         function resizeCanvas() {
             const container = document.getElementById('game-container');
             canvas.width = container.clientWidth;
@@ -633,7 +618,6 @@
         window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
         window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
         
-        // --- INICIO ---
         init();
         resizeCanvas();
 
