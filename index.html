@@ -65,7 +65,6 @@
             color: #1a1a1a;
             font-weight: bold;
             padding: 0.75rem 1.5rem;
-            margin-top: 1rem;
             border-radius: 8px;
             border: none;
             cursor: pointer;
@@ -104,55 +103,50 @@
             display: none;
             transition: opacity 0.5s;
         }
-        #end-game-screen {
+        /* Controles para Móvil */
+        #d-pad {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: none; /* Oculto por defecto */
+            z-index: 5;
+            user-select: none;
+        }
+        #fire-button {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            display: none; /* Oculto por defecto */
+            z-index: 5;
+            user-select: none;
+        }
+        .d-pad-btn, #fire-button button {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
+            font-size: 24px;
+            color: white;
         }
-        #end-game-message {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #00ff88;
-            text-shadow: 0 0 15px #00ff88;
+        .d-pad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 10px;
         }
-        /* Controles para Móvil */
-        #d-pad, #fire-button { display: none; }
+        #d-pad-up { grid-area: 1 / 2 / 2 / 3; }
+        #d-pad-left { grid-area: 2 / 1 / 3 / 2; }
+        #d-pad-right { grid-area: 2 / 3 / 3 / 4; }
+        #d-pad-down { grid-area: 3 / 2 / 4 / 3; }
+
         @media (max-width: 768px) {
-            #d-pad {
-                position: absolute;
-                bottom: 20px;
-                left: 20px;
+            #d-pad, #fire-button {
                 display: block;
-                z-index: 5;
-                user-select: none;
             }
-            #fire-button {
-                position: absolute;
-                bottom: 40px;
-                right: 40px;
-                display: block;
-                z-index: 5;
-                user-select: none;
-            }
-            .d-pad-btn, #fire-button button {
-                width: 60px; height: 60px;
-                background-color: rgba(255, 255, 255, 0.2);
-                border: 2px solid rgba(255, 255, 255, 0.4);
-                border-radius: 50%;
-                display: flex; align-items: center; justify-content: center;
-                font-size: 24px; color: white;
-            }
-            .d-pad-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 60px);
-                grid-template-rows: repeat(3, 60px);
-                gap: 10px;
-            }
-            #d-pad-up { grid-area: 1 / 2 / 2 / 3; }
-            #d-pad-left { grid-area: 2 / 1 / 3 / 2; }
-            #d-pad-right { grid-area: 2 / 3 / 3 / 4; }
-            #d-pad-down { grid-area: 3 / 2 / 4 / 3; }
         }
     </style>
 </head>
@@ -162,14 +156,15 @@
         <div id="status-message"></div>
         <canvas id="gameCanvas"></canvas>
         <div id="ui-overlay">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4 text-[#00ff88]">Guerra de Tanques</h1>
+            <p class="text-lg md:text-xl mb-8">Destruye al tanque enemigo.</p>
+            
             <div id="main-menu">
-                <h1 class="text-4xl md:text-5xl font-bold mb-4 text-[#00ff88]">Guerra de Tanques</h1>
-                <p class="text-lg md:text-xl mb-8">Destruye al tanque enemigo.</p>
                 <button id="create-game-btn" class="btn">Crear Partida</button>
                 <div class="my-4 text-lg">o</div>
                 <div class="flex flex-col md:flex-row items-center">
                     <input type="text" id="join-game-input" placeholder="Código de Partida">
-                    <button id="join-game-btn" class="btn mt-0 md:mt-4">Unirse a Partida</button>
+                    <button id="join-game-btn" class="btn">Unirse a Partida</button>
                 </div>
             </div>
 
@@ -177,28 +172,29 @@
                 <h2 class="text-2xl md:text-3xl mb-4">Esperando al oponente...</h2>
                 <p class="mb-4">Comparte este código con tu amigo:</p>
                 <div id="game-id-display" class="text-xl md:text-2xl font-bold bg-[#222] p-2 rounded-md border-dashed border-[#00ff88] cursor-pointer"></div>
-                <p class="mt-2 text-sm text-gray-400">(Haz clic para copiar)</p>
-            </div>
-            
-            <div id="end-game-screen" class="hidden">
-                 <p id="end-game-message"></p>
-                 <button id="play-again-btn" class="btn hidden">Jugar Otra Vez</button>
+                 <p class="mt-2 text-sm text-gray-400">(Haz clic en el código para copiar)</p>
             </div>
         </div>
 
         <!-- Controles Móviles -->
-        <div id="d-pad"><div class="d-pad-grid">
-            <button id="d-pad-up" class="d-pad-btn">▲</button> <button id="d-pad-left" class="d-pad-btn">◀</button>
-            <button id="d-pad-right" class="d-pad-btn">▶</button> <button id="d-pad-down" class="d-pad-btn">▼</button>
-        </div></div>
-        <div id="fire-button"><button>●</button></div>
+        <div id="d-pad">
+            <div class="d-pad-grid">
+                <button id="d-pad-up" class="d-pad-btn">▲</button>
+                <button id="d-pad-left" class="d-pad-btn">◀</button>
+                <button id="d-pad-right" class="d-pad-btn">▶</button>
+                <button id="d-pad-down" class="d-pad-btn">▼</button>
+            </div>
+        </div>
+        <div id="fire-button">
+            <button>●</button>
+        </div>
     </div>
 
     <script type="module">
         // --- IMPORTACIONES DE FIREBASE ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE Y JUEGO ---
         const firebaseConfig = {
@@ -210,76 +206,91 @@
             appId: "1:857564001327:web:2bc65a51a3f0ae789b82da",
             measurementId: "G-CTVMR12X4Z"
         };
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // --- DOM y ESTADO DEL JUEGO ---
-        const uiElements = {
-            canvas: document.getElementById('gameCanvas'),
-            uiOverlay: document.getElementById('ui-overlay'),
-            mainMenu: document.getElementById('main-menu'),
-            waitingRoom: document.getElementById('waiting-room'),
-            endGameScreen: document.getElementById('end-game-screen'),
-            endGameMessage: document.getElementById('end-game-message'),
-            playAgainBtn: document.getElementById('play-again-btn'),
-            statusMessage: document.getElementById('status-message'),
-        };
-        const ctx = uiElements.canvas.getContext('2d');
-        let gameId = null, playerId = null, playerNumber = null;
-        let gameState = { players: {}, projectiles: [] };
-        let gameUnsubscribe = null, animationFrameId = null;
-        const keys = {};
+        // --- ESTADO DEL JUEGO ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiOverlay = document.getElementById('ui-overlay');
+        const mainMenu = document.getElementById('main-menu');
+        const waitingRoom = document.getElementById('waiting-room');
+        const createGameBtn = document.getElementById('create-game-btn');
+        const joinGameInput = document.getElementById('join-game-input');
+        const joinGameBtn = document.getElementById('join-game-btn');
+        const gameIdDisplay = document.getElementById('game-id-display');
+        const statusMessage = document.getElementById('status-message');
 
-        // --- COORDINADAS VIRTUALES Y ESCALADO ---
-        const VIRTUAL_WIDTH = 1000;
-        const VIRTUAL_HEIGHT = 700;
-        let scale = 1, offsetX = 0, offsetY = 0;
+        let gameId = null;
+        let playerId = null;
+        let playerNumber = null;
+        let gameState = { players: {}, projectiles: [] };
+        let localProjectiles = []; // Para renderizado local
+        let gameUnsubscribe = null;
+        let animationFrameId = null;
+        const keys = {};
+        let lastTimestamp = 0;
 
         const obstacles = [
-            { x: 200, y: 150, width: 150, height: 30 }, { x: 650, y: 500, width: 150, height: 30 },
-            { x: 500, y: 300, width: 30, height: 150 }, { x: 100, y: 400, width: 30, height: 200 },
-            { x: 800, y: 100, width: 30, height: 200 },
+            { x: 0.2, y: 0.25, width: 0.15, height: 0.05 },
+            { x: 0.6, y: 0.7, width: 0.15, height: 0.05 },
+            { x: 0.5, y: 0.5, width: 0.03, height: 0.2 },
+            { x: 0.1, y: 0.6, width: 0.03, height: 0.2 },
+            { x: 0.8, y: 0.15, width: 0.03, height: 0.2 },
         ];
         
         function showTemporaryMessage(message, isError = false) {
-            uiElements.statusMessage.textContent = message;
-            uiElements.statusMessage.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(34, 197, 94, 0.9)';
-            uiElements.statusMessage.style.display = 'block';
-            uiElements.statusMessage.style.opacity = '1';
+            statusMessage.textContent = message;
+            statusMessage.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(34, 197, 94, 0.9)';
+            statusMessage.style.display = 'block';
+            statusMessage.style.opacity = '1';
+
             setTimeout(() => {
-                uiElements.statusMessage.style.opacity = '0';
-                setTimeout(() => uiElements.statusMessage.style.display = 'none', 500);
+                statusMessage.style.opacity = '0';
+                setTimeout(() => statusMessage.style.display = 'none', 500);
             }, 4500);
         }
 
         async function init() {
-            try { await signInAnonymously(auth); } catch (error) {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
                 console.error("Error en la autenticación:", error);
-                if (error.code === 'auth/configuration-not-found') showTemporaryMessage("Error: Habilita 'Anónimo' en Firebase > Authentication.", true);
-                else showTemporaryMessage("Error de autenticación. Revisa la consola.", true);
+                if (error.code === 'auth/configuration-not-found') {
+                    showTemporaryMessage("Error: Ve a tu consola de Firebase > Authentication > Sign-in method y habilita la opción 'Anónimo'.", true);
+                } else {
+                    showTemporaryMessage("Error de autenticación. Revisa la consola.", true);
+                }
             }
             onAuthStateChanged(auth, (user) => { if (user) playerId = user.uid; });
         }
-        
-        document.getElementById('create-game-btn').addEventListener('click', async () => {
+
+        createGameBtn.addEventListener('click', async () => {
             if (!playerId) return showTemporaryMessage("Aún no se ha autenticado. Intenta de nuevo.", true);
             playerNumber = 1;
             try {
                 const gameCollectionRef = collection(db, "games");
                 const newGameDoc = await addDoc(gameCollectionRef, {
-                    status: 'waiting', createdAt: serverTimestamp(), players: { [playerId]: { number: 1, x: 100, y: 100, angle: 0, health: 100, isHost: true, id: playerId } }, projectiles: [],
+                    status: 'waiting',
+                    createdAt: serverTimestamp(),
+                    players: { [playerId]: { number: 1, x: 100, y: 100, angle: 0, health: 100, isHost: true, id: playerId } },
+                    projectiles: [],
                 });
                 gameId = newGameDoc.id;
-                document.getElementById('game-id-display').textContent = gameId;
-                uiElements.mainMenu.classList.add('hidden');
-                uiElements.waitingRoom.classList.remove('hidden');
+                gameIdDisplay.textContent = gameId;
+                mainMenu.classList.add('hidden');
+                waitingRoom.classList.remove('hidden');
                 listenToGameUpdates();
-            } catch (error) { console.error("Error al crear partida:", error); showTemporaryMessage("Error al crear partida. Revisa las reglas de Firestore.", true); }
+            } catch (error) {
+                console.error("Error al crear partida:", error);
+                showTemporaryMessage("Error al crear partida. Revisa las reglas de Firestore.", true);
+            }
         });
         
-        document.getElementById('join-game-btn').addEventListener('click', async () => {
-            const idToJoin = document.getElementById('join-game-input').value.trim();
+        joinGameBtn.addEventListener('click', async () => {
+            const idToJoin = joinGameInput.value.trim();
             if (!idToJoin || !playerId) return showTemporaryMessage("Introduce un código de partida.", true);
             gameId = idToJoin;
             const gameRef = doc(db, "games", gameId);
@@ -290,59 +301,56 @@
                     if (Object.keys(gameData.players).length < 2) {
                         playerNumber = 2;
                         await updateDoc(gameRef, {
-                            status: 'playing', [`players.${playerId}`]: { number: 2, x: VIRTUAL_WIDTH - 100, y: VIRTUAL_HEIGHT - 100, angle: Math.PI, health: 100, isHost: false, id: playerId }
+                            status: 'playing',
+                            [`players.${playerId}`]: { number: 2, x: canvas.width - 100, y: canvas.height - 100, angle: Math.PI, health: 100, isHost: false, id: playerId }
                         });
                         listenToGameUpdates();
                     } else showTemporaryMessage("La partida está llena.", true);
                 } else showTemporaryMessage("No se encontró la partida.", true);
-            } catch (error) { console.error("Error al unirse:", error); showTemporaryMessage("Error al unirse. Revisa el código y tu conexión.", true); }
+            } catch (error) {
+                console.error("Error al unirse:", error);
+                showTemporaryMessage("Error al unirse. Revisa el código y tu conexión.", true);
+            }
         });
 
-        document.getElementById('game-id-display').addEventListener('click', () => {
-            const textToCopy = gameId; if (!textToCopy) return;
-            const textArea = document.createElement("textarea"); textArea.value = textToCopy;
-            document.body.appendChild(textArea); textArea.select();
-            try { document.execCommand('copy'); showTemporaryMessage('¡Código copiado!'); }
-            catch (err) { showTemporaryMessage('No se pudo copiar.', true); }
+        gameIdDisplay.addEventListener('click', () => {
+            const textToCopy = gameId;
+            if (!textToCopy) return;
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showTemporaryMessage('¡Código copiado!');
+            } catch (err) {
+                showTemporaryMessage('No se pudo copiar.', true);
+            }
             document.body.removeChild(textArea);
         });
 
-        uiElements.playAgainBtn.addEventListener('click', async () => {
-             if (playerNumber !== 1) return; // Solo el host puede reiniciar
-             const newPlayersState = {};
-             Object.values(gameState.players).forEach(p => {
-                newPlayersState[p.id] = {
-                    ...p,
-                    health: 100,
-                    x: p.number === 1 ? 100 : VIRTUAL_WIDTH - 100,
-                    y: p.number === 1 ? 100 : VIRTUAL_HEIGHT - 100,
-                    angle: p.number === 1 ? 0 : Math.PI
-                };
-             });
-             await updateDoc(doc(db, "games", gameId), {
-                 status: 'playing',
-                 projectiles: [],
-                 players: newPlayersState
-             });
-        });
-        
         function listenToGameUpdates() {
             if (gameUnsubscribe) gameUnsubscribe();
             const gameRef = doc(db, "games", gameId);
             gameUnsubscribe = onSnapshot(gameRef, (docSnap) => {
                 if (!docSnap.exists()) return endGame("El oponente ha abandonado.");
                 
-                const remoteGameState = docSnap.data();
-                if (remoteGameState) gameState = remoteGameState;
-                
-                if (gameState.status === 'playing') {
-                    if (!animationFrameId) { resizeCanvas(); animationFrameId = requestAnimationFrame(gameLoop); }
-                    uiElements.uiOverlay.classList.add('hidden');
+                gameState = docSnap.data();
+                localProjectiles = gameState.projectiles.map(p => ({...p}));
+
+                if ((gameState.status === 'playing' || (gameState.status === 'waiting' && Object.keys(gameState.players).length === 2))) {
+                    if (gameState.status === 'waiting') {
+                         updateDoc(doc(db, "games", gameId), { status: 'playing' });
+                    }
+                    if (!animationFrameId) {
+                        resizeCanvas();
+                        lastTimestamp = performance.now();
+                        gameLoop();
+                    }
+                    uiOverlay.classList.add('hidden');
                 } else if (gameState.status.includes('_wins')) {
                     const winnerNum = parseInt(gameState.status.charAt(1));
                     endGame(winnerNum === playerNumber ? "¡Has ganado!" : "¡Has perdido!");
-                } else if (gameState.status === 'waiting' && Object.keys(gameState.players).length === 2) {
-                     updateDoc(doc(db, "games", gameId), { status: 'playing' });
                 }
             });
         }
@@ -351,57 +359,54 @@
             constructor(data) { this.data = data; }
             draw() {
                 const { x, y, angle, health, number } = this.data;
-                const width = 40, height = 50, turretLength = 35;
+                const width = 40, height = 50;
                 const color = number === 1 ? '#4ade80' : '#f87171';
                 const turretColor = number === 1 ? '#16a34a' : '#dc2626';
                 ctx.save();
-                ctx.translate(offsetX + x * scale, offsetY + y * scale);
+                ctx.translate(x, y);
                 ctx.rotate(angle);
                 ctx.fillStyle = color;
-                ctx.fillRect(-width/2 * scale, -height/2 * scale, width * scale, height * scale);
+                ctx.fillRect(-width / 2, -height / 2, width, height);
                 ctx.fillStyle = turretColor;
-                ctx.fillRect(-5 * scale, -turretLength * scale, 10 * scale, turretLength * scale);
+                ctx.fillRect(-5, -7, 10, 40);
                 ctx.restore();
                 
                 const healthBarWidth = 50;
-                const healthX = offsetX + (x - healthBarWidth / 2) * scale;
-                const healthY = offsetY + (y - height / 2 - 15) * scale;
+                const healthPercentage = Math.max(0, health / 100);
                 ctx.fillStyle = '#3f3f46';
-                ctx.fillRect(healthX, healthY, healthBarWidth * scale, 8 * scale);
+                ctx.fillRect(x - healthBarWidth / 2, y - height / 2 - 15, healthBarWidth, 8);
                 ctx.fillStyle = '#22c55e';
-                ctx.fillRect(healthX, healthY, (healthBarWidth * Math.max(0, health / 100)) * scale, 8 * scale);
+                ctx.fillRect(x - healthBarWidth / 2, y - height / 2 - 15, healthBarWidth * healthPercentage, 8);
             }
         }
         
-        function drawGame() {
+        function moveProjectilesLocally(deltaTime) {
+            localProjectiles.forEach(p => {
+                p.x += Math.sin(p.angle) * p.speed * deltaTime * 60 / 1000;
+                p.y -= Math.cos(p.angle) * p.speed * deltaTime * 60 / 1000;
+            });
+        }
+
+        function drawGame(deltaTime) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#2a2a2a'; // Color de las barras si el aspect ratio no coincide
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(offsetX, offsetY);
-            ctx.scale(scale, scale);
-            
             ctx.fillStyle = '#3a3a3a';
-            ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+            ctx.fillRect(0,0, canvas.width, canvas.height);
             
-            ctx.fillStyle = '#8f8f8f';
-            obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.width, o.height));
-            ctx.restore();
+            obstacles.forEach(o => {
+                ctx.fillStyle = '#8f8f8f';
+                ctx.fillRect(o.x * canvas.width, o.y * canvas.height, o.width * canvas.width, o.height * canvas.height);
+            });
 
-            if (gameState.players) for (const pId in gameState.players) new Tank(gameState.players[pId]).draw();
-
-            if (gameState.projectiles) {
-                const now = Date.now();
-                ctx.fillStyle = '#fef08a';
-                gameState.projectiles.forEach(p => {
-                    const elapsedTime = (now - p.createdAt) / 1000.0;
-                    const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
-                    const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
-                    ctx.beginPath();
-                    ctx.arc(offsetX + currentX * scale, offsetY + currentY * scale, 5 * scale, 0, Math.PI * 2);
-                    ctx.fill();
-                });
+            for (const pId in gameState.players) {
+                new Tank(gameState.players[pId]).draw();
             }
+
+            ctx.fillStyle = '#fef08a';
+            localProjectiles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
         }
 
         function handleInput() {
@@ -409,108 +414,105 @@
             const p = gameState.players[playerId];
             let { x, y, angle } = p;
             let needsUpdate = false;
-            const speed = 4;
-            const rotationSpeed = 0.05;
+            const speed = 2.5, rotationSpeed = 0.04;
+            let newX = x, newY = y;
 
-            const forward = (keys['w'] || keys['ArrowUp']) ? 1 : (keys['s'] || keys['ArrowDown']) ? -0.7 : 0;
-            const turn = (keys['d'] || keys['ArrowRight']) ? 1 : (keys['a'] || keys['ArrowLeft']) ? -1 : 0;
-            
-            if (turn !== 0) { angle += turn * rotationSpeed; needsUpdate = true; }
-            if (forward !== 0) {
-                x += Math.sin(angle) * speed * forward;
-                y -= Math.cos(angle) * speed * forward;
-                needsUpdate = true;
-            }
+            if (keys['w'] || keys['ArrowUp']) { newX += Math.sin(angle) * speed; newY -= Math.cos(angle) * speed; needsUpdate = true; }
+            if (keys['s'] || keys['ArrowDown']) { newX -= Math.sin(angle) * speed * 0.7; newY += Math.cos(angle) * speed * 0.7; needsUpdate = true; }
+            if (keys['a'] || keys['ArrowLeft']) { angle -= rotationSpeed; needsUpdate = true; }
+            if (keys['d'] || keys['ArrowRight']) { angle += rotationSpeed; needsUpdate = true; }
 
             const w = 40, h = 50;
-            const playerRect = { x: x - w/2, y: y - h/2, width: w, height: h };
-            let collision = playerRect.x < 0 || playerRect.x + w > VIRTUAL_WIDTH || playerRect.y < 0 || playerRect.y + h > VIRTUAL_HEIGHT;
+            const playerRect = { x: newX - w/2, y: newY - h/2, width: w, height: h };
+            let collision = playerRect.x < 0 || playerRect.x + w > canvas.width || playerRect.y < 0 || playerRect.y + h > canvas.height;
             if (!collision) {
                 for (const o of obstacles) {
-                    if (playerRect.x < o.x + o.width && playerRect.x + w > o.x && playerRect.y < o.y + o.height && playerRect.y + h > o.y) {
+                    const obsRect = { x: o.x * canvas.width, y: o.y * canvas.height, width: o.width * canvas.width, height: o.height * canvas.height };
+                    if (playerRect.x < obsRect.x + obsRect.width && playerRect.x + w > obsRect.x && playerRect.y < obsRect.y + obsRect.height && playerRect.y + h > obsRect.y) {
                         collision = true; break;
                     }
                 }
             }
-            if (collision) { x = p.x; y = p.y; } // Revertir si hay colisión
+            if (!collision) { p.x = newX; p.y = newY; }
+            p.angle = angle;
             
-            if (needsUpdate) {
-                updateDoc(doc(db, "games", gameId), { [`players.${playerId}.x`]: x, [`players.${playerId}.y`]: y, [`players.${playerId}.angle`]: angle });
-            }
+            if (needsUpdate) updateDoc(doc(db, "games", gameId), { [`players.${playerId}.x`]: p.x, [`players.${playerId}.y`]: p.y, [`players.${playerId}.angle`]: p.angle });
         }
         
         let lastShotTime = 0;
         function handleShooting() {
-            if (keys[' '] && Date.now() - lastShotTime > 500) {
+            if(keys[' '] && Date.now() - lastShotTime > 500) {
                 lastShotTime = Date.now();
-                if (!gameState.players || !gameState.players[playerId]) return;
-
                 const p = gameState.players[playerId];
-                const turretLength = 35;
                 const newProjectile = {
                     id: `${playerId}-${Date.now()}`, ownerId: playerId,
-                    initialX: p.x + Math.sin(p.angle) * turretLength,
-                    initialY: p.y - Math.cos(p.angle) * turretLength,
-                    angle: p.angle, speed: 500, createdAt: Date.now()
+                    x: p.x + Math.sin(p.angle) * 40, y: p.y - Math.cos(p.angle) * 40,
+                    angle: p.angle, speed: 7,
                 };
-                
-                updateDoc(doc(db, "games", gameId), { projectiles: arrayUnion(newProjectile) });
+                updateDoc(doc(db, "games", gameId), { projectiles: [...gameState.projectiles, newProjectile] });
             }
         }
 
         function updateGameStateOnHost() {
-            if (!gameState || !gameState.players || !gameState.players[playerId] || !gameState.players[playerId].isHost) return;
+            if (!gameState || !gameState.players[playerId] || !gameState.players[playerId].isHost) return;
             
-            const now = Date.now();
+            let newProjectiles = gameState.projectiles.map(p => ({...p}));
             let players = JSON.parse(JSON.stringify(gameState.players));
             let stateChanged = false;
-            const projectileLifetime = 3000;
 
-            const updatedProjectiles = (gameState.projectiles || []).filter(p => {
-                if (now - p.createdAt > projectileLifetime) { stateChanged = true; return false; }
-                const elapsedTime = (now - p.createdAt) / 1000.0;
-                const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
-                const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
-                
-                if (currentX < 0 || currentX > VIRTUAL_WIDTH || currentY < 0 || currentY > VIRTUAL_HEIGHT) { stateChanged = true; return false; }
-                
+            // Colisiones y limpieza de proyectiles
+            newProjectiles = newProjectiles.filter(p => {
+                // Bordes del canvas
+                if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) return false;
+                // Obstáculos
                 for (const o of obstacles) {
-                    if (currentX > o.x && currentX < o.x + o.width && currentY > o.y && currentY < o.y + o.height) {
-                        stateChanged = true; return false;
-                    }
+                    const obsRect = { x: o.x * canvas.width, y: o.y * canvas.height, width: o.width * canvas.width, height: o.height * canvas.height };
+                    if (p.x > obsRect.x && p.x < obsRect.x + obsRect.width && p.y > obsRect.y && p.y < obsRect.y + obsRect.height) return false;
                 }
+                // Tanques
                 for (const pId in players) {
-                    if (p.ownerId !== pId && players[pId].health > 0) {
-                        if (Math.sqrt((currentX - players[pId].x)**2 + (currentY - players[pId].y)**2) < 30) {
+                    if (p.ownerId !== pId) {
+                        const tank = players[pId];
+                        if (Math.sqrt((p.x - tank.x)**2 + (p.y - tank.y)**2) < 30) {
                             players[pId].health -= 10;
-                            stateChanged = true; return false;
+                            stateChanged = true;
+                            return false;
                         }
                     }
                 }
                 return true;
             });
 
-            if (stateChanged) {
-                 const updates = { projectiles: updatedProjectiles, players: players };
+            if (newProjectiles.length !== gameState.projectiles.length || stateChanged) {
+                 const updates = { projectiles: newProjectiles, players };
                  for (const pId in players) {
                      if (players[pId].health <= 0) {
                         players[pId].health = 0;
                         const winner = Object.values(players).find(pl => pl.id !== pId);
-                        if (gameState.status === 'playing' && winner) {
-                           updates.status = `p${winner.number}_wins`;
-                           break;
-                        }
+                        updates.status = `p${winner.number}_wins`;
+                        break;
                      }
                  }
                 updateDoc(doc(db, "games", gameId), updates);
             }
         }
         
-        function gameLoop() {
-            if (!gameState || !gameState.players || gameState.status !== 'playing') {
-                animationFrameId = requestAnimationFrame(gameLoop); return;
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+
+            if (!gameState || gameState.status !== 'playing') {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+                return;
             }
-            handleInput(); handleShooting(); updateGameStateOnHost(); drawGame();
+            
+            handleInput();
+            handleShooting();
+            moveProjectilesLocally(deltaTime);
+            updateGameStateOnHost();
+            drawGame();
+
             animationFrameId = requestAnimationFrame(gameLoop);
         }
 
@@ -518,44 +520,34 @@
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             if (gameUnsubscribe) gameUnsubscribe();
             animationFrameId = null; gameUnsubscribe = null;
-            
-            uiElements.endGameMessage.textContent = message;
-            if(playerNumber === 1) uiElements.playAgainBtn.classList.remove('hidden');
-            uiElements.endGameScreen.classList.remove('hidden');
-            uiElements.mainMenu.classList.add('hidden');
-            uiElements.waitingRoom.classList.add('hidden');
-            uiElements.uiOverlay.classList.remove('hidden');
+            showTemporaryMessage(message, false);
+            setTimeout(() => {
+                uiOverlay.classList.remove('hidden');
+                mainMenu.classList.remove('hidden');
+                waitingRoom.classList.add('hidden');
+            }, 5000);
         }
         
         function setupMobileControls() {
+            const dPadUp = document.getElementById('d-pad-up');
+            const dPadDown = document.getElementById('d-pad-down');
+            const dPadLeft = document.getElementById('d-pad-left');
+            const dPadRight = document.getElementById('d-pad-right');
+            const fireBtn = document.getElementById('fire-button');
             const keyMap = { 'd-pad-up': 'w', 'd-pad-down': 's', 'd-pad-left': 'a', 'd-pad-right': 'd' };
-            Object.keys(keyMap).forEach(id => {
-                const btn = document.getElementById(id);
-                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyMap[id]] = true; }, { passive: false });
-                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyMap[id]] = false; }, { passive: false });
+
+            [dPadUp, dPadDown, dPadLeft, dPadRight].forEach(btn => {
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyMap[btn.id]] = true; }, { passive: false });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyMap[btn.id]] = false; }, { passive: false });
             });
-            document.querySelector('#fire-button button').addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; }, { passive: false });
-            document.querySelector('#fire-button button').addEventListener('touchend', (e) => { e.preventDefault(); keys[' '] = false; }, { passive: false });
+            fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; }, { passive: false });
+            fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); keys[' '] = false; }, { passive: false });
         }
 
         function resizeCanvas() {
-            const canvasEl = uiElements.canvas;
             const container = document.getElementById('game-container');
-            canvasEl.width = container.clientWidth;
-            canvasEl.height = container.clientHeight;
-
-            const ratio = VIRTUAL_WIDTH / VIRTUAL_HEIGHT;
-            const canvasRatio = canvasEl.width / canvasEl.height;
-
-            if (canvasRatio > ratio) {
-                scale = canvasEl.height / VIRTUAL_HEIGHT;
-                offsetX = (canvasEl.width - VIRTUAL_WIDTH * scale) / 2;
-                offsetY = 0;
-            } else {
-                scale = canvasEl.width / VIRTUAL_WIDTH;
-                offsetX = 0;
-                offsetY = (canvasEl.height - VIRTUAL_HEIGHT * scale) / 2;
-            }
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
         }
 
         window.addEventListener('resize', resizeCanvas);
@@ -565,6 +557,7 @@
         init();
         resizeCanvas();
         setupMobileControls();
+
     </script>
 </body>
 </html>
