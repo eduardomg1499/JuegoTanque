@@ -194,7 +194,7 @@
         // --- IMPORTACIONES DE FIREBASE ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, collection, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE Y JUEGO ---
         const firebaseConfig = {
@@ -231,12 +231,17 @@
         let animationFrameId = null;
         const keys = {};
 
+        // --- COORDINADAS VIRTUALES Y ESCALADO ---
+        const VIRTUAL_WIDTH = 1000;
+        const VIRTUAL_HEIGHT = 700;
+        let scaleX = 1, scaleY = 1;
+
         const obstacles = [
-            { x: 0.2, y: 0.25, width: 0.15, height: 0.05 },
-            { x: 0.6, y: 0.7, width: 0.15, height: 0.05 },
-            { x: 0.5, y: 0.5, width: 0.03, height: 0.2 },
-            { x: 0.1, y: 0.6, width: 0.03, height: 0.2 },
-            { x: 0.8, y: 0.15, width: 0.03, height: 0.2 },
+            { x: 200, y: 150, width: 150, height: 30 },
+            { x: 650, y: 500, width: 150, height: 30 },
+            { x: 500, y: 300, width: 30, height: 150 },
+            { x: 100, y: 400, width: 30, height: 200 },
+            { x: 800, y: 100, width: 30, height: 200 },
         ];
         
         function showTemporaryMessage(message, isError = false) {
@@ -244,7 +249,6 @@
             statusMessage.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(34, 197, 94, 0.9)';
             statusMessage.style.display = 'block';
             statusMessage.style.opacity = '1';
-
             setTimeout(() => {
                 statusMessage.style.opacity = '0';
                 setTimeout(() => statusMessage.style.display = 'none', 500);
@@ -252,15 +256,11 @@
         }
 
         async function init() {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
+            try { await signInAnonymously(auth); } catch (error) {
                 console.error("Error en la autenticación:", error);
                 if (error.code === 'auth/configuration-not-found') {
                     showTemporaryMessage("Error: Ve a tu consola de Firebase > Authentication > Sign-in method y habilita la opción 'Anónimo'.", true);
-                } else {
-                    showTemporaryMessage("Error de autenticación. Revisa la consola.", true);
-                }
+                } else { showTemporaryMessage("Error de autenticación. Revisa la consola.", true); }
             }
             onAuthStateChanged(auth, (user) => { if (user) playerId = user.uid; });
         }
@@ -300,7 +300,7 @@
                         playerNumber = 2;
                         await updateDoc(gameRef, {
                             status: 'playing',
-                            [`players.${playerId}`]: { number: 2, x: canvas.width - 100, y: canvas.height - 100, angle: Math.PI, health: 100, isHost: false, id: playerId }
+                            [`players.${playerId}`]: { number: 2, x: VIRTUAL_WIDTH - 100, y: VIRTUAL_HEIGHT - 100, angle: Math.PI, health: 100, isHost: false, id: playerId }
                         });
                         listenToGameUpdates();
                     } else showTemporaryMessage("La partida está llena.", true);
@@ -318,12 +318,8 @@
             textArea.value = textToCopy;
             document.body.appendChild(textArea);
             textArea.select();
-            try {
-                document.execCommand('copy');
-                showTemporaryMessage('¡Código copiado!');
-            } catch (err) {
-                showTemporaryMessage('No se pudo copiar.', true);
-            }
+            try { document.execCommand('copy'); showTemporaryMessage('¡Código copiado!'); }
+            catch (err) { showTemporaryMessage('No se pudo copiar.', true); }
             document.body.removeChild(textArea);
         });
 
@@ -334,18 +330,11 @@
                 if (!docSnap.exists()) return endGame("El oponente ha abandonado.");
                 
                 const remoteGameState = docSnap.data();
-                if (remoteGameState) {
-                    gameState = remoteGameState;
-                }
-
+                if (remoteGameState) gameState = remoteGameState;
+                
                 if ((gameState.status === 'playing' || (gameState.status === 'waiting' && Object.keys(gameState.players).length === 2))) {
-                    if (gameState.status === 'waiting') {
-                         updateDoc(doc(db, "games", gameId), { status: 'playing' });
-                    }
-                    if (!animationFrameId) {
-                        resizeCanvas();
-                        animationFrameId = requestAnimationFrame(gameLoop);
-                    }
+                    if (gameState.status === 'waiting') updateDoc(doc(db, "games", gameId), { status: 'playing' });
+                    if (!animationFrameId) { resizeCanvas(); animationFrameId = requestAnimationFrame(gameLoop); }
                     uiOverlay.classList.add('hidden');
                 } else if (gameState.status.includes('_wins')) {
                     const winnerNum = parseInt(gameState.status.charAt(1));
@@ -362,20 +351,22 @@
                 const color = number === 1 ? '#4ade80' : '#f87171';
                 const turretColor = number === 1 ? '#16a34a' : '#dc2626';
                 ctx.save();
-                ctx.translate(x, y);
+                ctx.translate(x * scaleX, y * scaleY);
                 ctx.rotate(angle);
+                // Cuerpo del tanque
                 ctx.fillStyle = color;
-                ctx.fillRect(-width / 2, -height / 2, width, height);
+                ctx.fillRect(-width/2 * scaleX, -height/2 * scaleY, width * scaleX, height * scaleY);
+                // Torreta corregida para apuntar hacia arriba (dirección de movimiento)
                 ctx.fillStyle = turretColor;
-                ctx.fillRect(-5, -7, 10, 40);
+                ctx.fillRect(-5 * scaleX, -35 * scaleY, 10 * scaleX, 35 * scaleY);
                 ctx.restore();
                 
+                // Barra de vida
                 const healthBarWidth = 50;
-                const healthPercentage = Math.max(0, health / 100);
                 ctx.fillStyle = '#3f3f46';
-                ctx.fillRect(x - healthBarWidth / 2, y - height / 2 - 15, healthBarWidth, 8);
+                ctx.fillRect((x - healthBarWidth/2) * scaleX, (y - height/2 - 15) * scaleY, healthBarWidth * scaleX, 8 * scaleY);
                 ctx.fillStyle = '#22c55e';
-                ctx.fillRect(x - healthBarWidth / 2, y - height / 2 - 15, healthBarWidth * healthPercentage, 8);
+                ctx.fillRect((x - healthBarWidth/2) * scaleX, (y - height/2 - 15) * scaleY, (healthBarWidth * Math.max(0, health / 100)) * scaleX, 8 * scaleY);
             }
         }
         
@@ -384,16 +375,10 @@
             ctx.fillStyle = '#3a3a3a';
             ctx.fillRect(0,0, canvas.width, canvas.height);
             
-            obstacles.forEach(o => {
-                ctx.fillStyle = '#8f8f8f';
-                ctx.fillRect(o.x * canvas.width, o.y * canvas.height, o.width * canvas.width, o.height * canvas.height);
-            });
+            ctx.fillStyle = '#8f8f8f';
+            obstacles.forEach(o => ctx.fillRect(o.x * scaleX, o.y * scaleY, o.width * scaleX, o.height * scaleY));
 
-            if (gameState.players) {
-                for (const pId in gameState.players) {
-                    new Tank(gameState.players[pId]).draw();
-                }
-            }
+            if (gameState.players) for (const pId in gameState.players) new Tank(gameState.players[pId]).draw();
 
             if (gameState.projectiles) {
                 const now = Date.now();
@@ -403,7 +388,7 @@
                     const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
                     const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
                     ctx.beginPath();
-                    ctx.arc(currentX, currentY, 5, 0, Math.PI * 2);
+                    ctx.arc(currentX * scaleX, currentY * scaleY, 5 * scaleX, 0, Math.PI * 2);
                     ctx.fill();
                 });
             }
@@ -414,58 +399,67 @@
             const p = gameState.players[playerId];
             let { x, y, angle } = p;
             let needsUpdate = false;
-            const speed = 2.5, rotationSpeed = 0.04;
+            const speed = 4, rotationSpeed = 0.05;
             let newX = x, newY = y;
 
-            if (keys['w'] || keys['ArrowUp']) { newX += Math.sin(angle) * speed; newY -= Math.cos(angle) * speed; needsUpdate = true; }
-            if (keys['s'] || keys['ArrowDown']) { newX -= Math.sin(angle) * speed * 0.7; newY += Math.cos(angle) * speed * 0.7; needsUpdate = true; }
+            if (keys['w'] || keys['ArrowUp']) { newY -= speed; needsUpdate = true; }
+            if (keys['s'] || keys['ArrowDown']) { newY += speed * 0.7; needsUpdate = true; }
+            
+            // Transformar movimiento lateral según el ángulo actual
+            const moveX = (keys['a'] || keys['ArrowLeft']) ? -speed : (keys['d'] || keys['ArrowRight']) ? speed : 0;
+            if(moveX !== 0) {
+                newX += moveX;
+                needsUpdate = true;
+            }
+
+            // Rotación
             if (keys['a'] || keys['ArrowLeft']) { angle -= rotationSpeed; needsUpdate = true; }
             if (keys['d'] || keys['ArrowRight']) { angle += rotationSpeed; needsUpdate = true; }
 
+            // Aplicar la rotación al movimiento
+            const finalX = x + (newX-x)*Math.cos(angle) - (newY-y)*Math.sin(angle);
+            const finalY = y + (newX-x)*Math.sin(angle) + (newY-y)*Math.cos(angle);
+
+
             const w = 40, h = 50;
-            const playerRect = { x: newX - w/2, y: newY - h/2, width: w, height: h };
-            let collision = playerRect.x < 0 || playerRect.x + w > canvas.width || playerRect.y < 0 || playerRect.y + h > canvas.height;
+            const playerRect = { x: finalX - w/2, y: finalY - h/2, width: w, height: h };
+            let collision = playerRect.x < 0 || playerRect.x + w > VIRTUAL_WIDTH || playerRect.y < 0 || playerRect.y + h > VIRTUAL_HEIGHT;
             if (!collision) {
                 for (const o of obstacles) {
-                    const obsRect = { x: o.x * canvas.width, y: o.y * canvas.height, width: o.width * canvas.width, height: o.height * canvas.height };
-                    if (playerRect.x < obsRect.x + obsRect.width && playerRect.x + w > obsRect.x && playerRect.y < obsRect.y + obsRect.height && playerRect.y + h > obsRect.y) {
+                    if (playerRect.x < o.x + o.width && playerRect.x + w > o.x && playerRect.y < o.y + o.height && playerRect.y + h > o.y) {
                         collision = true; break;
                     }
                 }
             }
-            if (!collision) { p.x = newX; p.y = newY; }
+            if (!collision) { p.x = finalX; p.y = finalY; }
             p.angle = angle;
             
             if (needsUpdate) {
                 const gameRef = doc(db, "games", gameId);
-                updateDoc(gameRef, { 
-                    [`players.${playerId}.x`]: p.x, 
-                    [`players.${playerId}.y`]: p.y, 
-                    [`players.${playerId}.angle`]: p.angle 
-                });
+                updateDoc(gameRef, { [`players.${playerId}.x`]: p.x, [`players.${playerId}.y`]: p.y, [`players.${playerId}.angle`]: p.angle });
             }
         }
         
         let lastShotTime = 0;
         function handleShooting() {
-            if(keys[' '] && Date.now() - lastShotTime > 500) {
+            if (keys[' '] && Date.now() - lastShotTime > 500) {
                 lastShotTime = Date.now();
                 if (!gameState.players || !gameState.players[playerId]) return;
 
                 const p = gameState.players[playerId];
+                const turretLength = 35;
                 const newProjectile = {
                     id: `${playerId}-${Date.now()}`,
                     ownerId: playerId,
-                    initialX: p.x + Math.sin(p.angle) * 40,
-                    initialY: p.y - Math.cos(p.angle) * 40,
+                    initialX: p.x - Math.sin(p.angle) * turretLength,
+                    initialY: p.y - Math.cos(p.angle) * turretLength,
                     angle: p.angle,
-                    speed: 400, // Píxeles por segundo
+                    speed: 500, // Pixeles virtuales por segundo
                     createdAt: Date.now()
                 };
                 
-                const currentProjectiles = gameState.projectiles || [];
                 const gameRef = doc(db, "games", gameId);
-                updateDoc(gameRef, { projectiles: [...currentProjectiles, newProjectile] });
+                updateDoc(gameRef, { projectiles: arrayUnion(newProjectile) });
             }
         }
 
@@ -475,7 +469,7 @@
             const now = Date.now();
             let players = JSON.parse(JSON.stringify(gameState.players));
             let stateChanged = false;
-            const projectileLifetime = 3000; // 3 segundos de vida
+            const projectileLifetime = 3000;
 
             const updatedProjectiles = (gameState.projectiles || []).filter(p => {
                 if (now - p.createdAt > projectileLifetime) {
@@ -484,10 +478,11 @@
                 const elapsedTime = (now - p.createdAt) / 1000.0;
                 const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
                 const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
-
+                
+                if (currentX < 0 || currentX > VIRTUAL_WIDTH || currentY < 0 || currentY > VIRTUAL_HEIGHT) { stateChanged = true; return false; }
+                
                 for (const o of obstacles) {
-                    const obsRect = { x: o.x * canvas.width, y: o.y * canvas.height, width: o.width * canvas.width, height: o.height * canvas.height };
-                    if (currentX > obsRect.x && currentX < obsRect.x + obsRect.width && currentY > obsRect.y && currentY < obsRect.y + obsRect.height) {
+                    if (currentX > o.x && currentX < o.x + o.width && currentY > o.y && currentY < o.y + o.height) {
                         stateChanged = true; return false;
                     }
                 }
@@ -505,7 +500,7 @@
             });
 
             if (stateChanged) {
-                 const updates = { projectiles: updatedProjectiles, players: players };
+                 const updates = { projectiles: updatedProjectiles, players };
                  for (const pId in players) {
                      if (players[pId].health <= 0) {
                         players[pId].health = 0;
@@ -522,8 +517,7 @@
         
         function gameLoop() {
             if (!gameState || !gameState.players || gameState.status !== 'playing') {
-                animationFrameId = requestAnimationFrame(gameLoop);
-                return;
+                animationFrameId = requestAnimationFrame(gameLoop); return;
             }
             
             handleInput();
@@ -547,17 +541,13 @@
         }
         
         function setupMobileControls() {
-            const dPadUp = document.getElementById('d-pad-up');
-            const dPadDown = document.getElementById('d-pad-down');
-            const dPadLeft = document.getElementById('d-pad-left');
-            const dPadRight = document.getElementById('d-pad-right');
-            const fireBtn = document.getElementById('fire-button');
             const keyMap = { 'd-pad-up': 'w', 'd-pad-down': 's', 'd-pad-left': 'a', 'd-pad-right': 'd' };
-
-            [dPadUp, dPadDown, dPadLeft, dPadRight].forEach(btn => {
-                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyMap[btn.id]] = true; }, { passive: false });
-                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyMap[btn.id]] = false; }, { passive: false });
+            Object.keys(keyMap).forEach(id => {
+                const btn = document.getElementById(id);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyMap[id]] = true; }, { passive: false });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyMap[id]] = false; }, { passive: false });
             });
+            const fireBtn = document.querySelector('#fire-button button');
             fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; }, { passive: false });
             fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); keys[' '] = false; }, { passive: false });
         }
@@ -566,6 +556,8 @@
             const container = document.getElementById('game-container');
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
+            scaleX = canvas.width / VIRTUAL_WIDTH;
+            scaleY = canvas.height / VIRTUAL_HEIGHT;
         }
 
         window.addEventListener('resize', resizeCanvas);
