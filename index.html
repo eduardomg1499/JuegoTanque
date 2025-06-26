@@ -227,11 +227,9 @@
         let playerId = null;
         let playerNumber = null;
         let gameState = { players: {}, projectiles: [] };
-        let localProjectiles = []; // Para renderizado local
         let gameUnsubscribe = null;
         let animationFrameId = null;
         const keys = {};
-        let lastTimestamp = 0;
 
         const obstacles = [
             { x: 0.2, y: 0.25, width: 0.15, height: 0.05 },
@@ -335,8 +333,10 @@
             gameUnsubscribe = onSnapshot(gameRef, (docSnap) => {
                 if (!docSnap.exists()) return endGame("El oponente ha abandonado.");
                 
-                gameState = docSnap.data();
-                localProjectiles = gameState.projectiles.map(p => ({...p}));
+                const remoteGameState = docSnap.data();
+                if (remoteGameState) {
+                    gameState = remoteGameState;
+                }
 
                 if ((gameState.status === 'playing' || (gameState.status === 'waiting' && Object.keys(gameState.players).length === 2))) {
                     if (gameState.status === 'waiting') {
@@ -344,8 +344,7 @@
                     }
                     if (!animationFrameId) {
                         resizeCanvas();
-                        lastTimestamp = performance.now();
-                        gameLoop();
+                        animationFrameId = requestAnimationFrame(gameLoop);
                     }
                     uiOverlay.classList.add('hidden');
                 } else if (gameState.status.includes('_wins')) {
@@ -380,14 +379,7 @@
             }
         }
         
-        function moveProjectilesLocally(deltaTime) {
-            localProjectiles.forEach(p => {
-                p.x += Math.sin(p.angle) * p.speed * deltaTime * 60 / 1000;
-                p.y -= Math.cos(p.angle) * p.speed * deltaTime * 60 / 1000;
-            });
-        }
-
-        function drawGame(deltaTime) {
+        function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#3a3a3a';
             ctx.fillRect(0,0, canvas.width, canvas.height);
@@ -397,16 +389,24 @@
                 ctx.fillRect(o.x * canvas.width, o.y * canvas.height, o.width * canvas.width, o.height * canvas.height);
             });
 
-            for (const pId in gameState.players) {
-                new Tank(gameState.players[pId]).draw();
+            if (gameState.players) {
+                for (const pId in gameState.players) {
+                    new Tank(gameState.players[pId]).draw();
+                }
             }
 
-            ctx.fillStyle = '#fef08a';
-            localProjectiles.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                ctx.fill();
-            });
+            if (gameState.projectiles) {
+                const now = Date.now();
+                ctx.fillStyle = '#fef08a';
+                gameState.projectiles.forEach(p => {
+                    const elapsedTime = (now - p.createdAt) / 1000.0;
+                    const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
+                    const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
+                    ctx.beginPath();
+                    ctx.arc(currentX, currentY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
         }
 
         function handleInput() {
@@ -436,44 +436,65 @@
             if (!collision) { p.x = newX; p.y = newY; }
             p.angle = angle;
             
-            if (needsUpdate) updateDoc(doc(db, "games", gameId), { [`players.${playerId}.x`]: p.x, [`players.${playerId}.y`]: p.y, [`players.${playerId}.angle`]: p.angle });
+            if (needsUpdate) {
+                const gameRef = doc(db, "games", gameId);
+                updateDoc(gameRef, { 
+                    [`players.${playerId}.x`]: p.x, 
+                    [`players.${playerId}.y`]: p.y, 
+                    [`players.${playerId}.angle`]: p.angle 
+                });
+            }
         }
         
         let lastShotTime = 0;
         function handleShooting() {
             if(keys[' '] && Date.now() - lastShotTime > 500) {
                 lastShotTime = Date.now();
+                if (!gameState.players || !gameState.players[playerId]) return;
+
                 const p = gameState.players[playerId];
                 const newProjectile = {
-                    id: `${playerId}-${Date.now()}`, ownerId: playerId,
-                    x: p.x + Math.sin(p.angle) * 40, y: p.y - Math.cos(p.angle) * 40,
-                    angle: p.angle, speed: 7,
+                    id: `${playerId}-${Date.now()}`,
+                    ownerId: playerId,
+                    initialX: p.x + Math.sin(p.angle) * 40,
+                    initialY: p.y - Math.cos(p.angle) * 40,
+                    angle: p.angle,
+                    speed: 400, // Píxeles por segundo
+                    createdAt: Date.now()
                 };
-                updateDoc(doc(db, "games", gameId), { projectiles: [...gameState.projectiles, newProjectile] });
+                
+                const currentProjectiles = gameState.projectiles || [];
+                const gameRef = doc(db, "games", gameId);
+                updateDoc(gameRef, { projectiles: [...currentProjectiles, newProjectile] });
             }
         }
 
         function updateGameStateOnHost() {
-            if (!gameState || !gameState.players[playerId] || !gameState.players[playerId].isHost) return;
+            if (!gameState || !gameState.players || !gameState.players[playerId] || !gameState.players[playerId].isHost) return;
             
-            let newProjectiles = gameState.projectiles.map(p => ({...p}));
+            const now = Date.now();
             let players = JSON.parse(JSON.stringify(gameState.players));
             let stateChanged = false;
+            const projectileLifetime = 3000; // 3 segundos de vida
 
-            // Colisiones y limpieza de proyectiles
-            newProjectiles = newProjectiles.filter(p => {
-                // Bordes del canvas
-                if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) return false;
-                // Obstáculos
+            const updatedProjectiles = (gameState.projectiles || []).filter(p => {
+                if (now - p.createdAt > projectileLifetime) {
+                    stateChanged = true; return false;
+                }
+                const elapsedTime = (now - p.createdAt) / 1000.0;
+                const currentX = p.initialX + Math.sin(p.angle) * p.speed * elapsedTime;
+                const currentY = p.initialY - Math.cos(p.angle) * p.speed * elapsedTime;
+
                 for (const o of obstacles) {
                     const obsRect = { x: o.x * canvas.width, y: o.y * canvas.height, width: o.width * canvas.width, height: o.height * canvas.height };
-                    if (p.x > obsRect.x && p.x < obsRect.x + obsRect.width && p.y > obsRect.y && p.y < obsRect.y + obsRect.height) return false;
+                    if (currentX > obsRect.x && currentX < obsRect.x + obsRect.width && currentY > obsRect.y && currentY < obsRect.y + obsRect.height) {
+                        stateChanged = true; return false;
+                    }
                 }
-                // Tanques
                 for (const pId in players) {
-                    if (p.ownerId !== pId) {
+                    if (p.ownerId !== pId && players[pId].health > 0) {
                         const tank = players[pId];
-                        if (Math.sqrt((p.x - tank.x)**2 + (p.y - tank.y)**2) < 30) {
+                        if (Math.sqrt((currentX - tank.x)**2 + (currentY - tank.y)**2) < 30) {
                             players[pId].health -= 10;
                             stateChanged = true;
                             return false;
@@ -483,33 +504,30 @@
                 return true;
             });
 
-            if (newProjectiles.length !== gameState.projectiles.length || stateChanged) {
-                 const updates = { projectiles: newProjectiles, players };
+            if (stateChanged) {
+                 const updates = { projectiles: updatedProjectiles, players: players };
                  for (const pId in players) {
                      if (players[pId].health <= 0) {
                         players[pId].health = 0;
                         const winner = Object.values(players).find(pl => pl.id !== pId);
-                        updates.status = `p${winner.number}_wins`;
-                        break;
+                        if (gameState.status === 'playing' && winner) {
+                           updates.status = `p${winner.number}_wins`;
+                           break;
+                        }
                      }
                  }
                 updateDoc(doc(db, "games", gameId), updates);
             }
         }
         
-        function gameLoop(timestamp) {
-            const deltaTime = timestamp - lastTimestamp;
-            lastTimestamp = timestamp;
-
-            if (!gameState || gameState.status !== 'playing') {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
+        function gameLoop() {
+            if (!gameState || !gameState.players || gameState.status !== 'playing') {
+                animationFrameId = requestAnimationFrame(gameLoop);
                 return;
             }
             
             handleInput();
             handleShooting();
-            moveProjectilesLocally(deltaTime);
             updateGameStateOnHost();
             drawGame();
 
